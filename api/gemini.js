@@ -3,7 +3,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const apiKey = process.env.GEMINI_API_KEY; // NO "VITE_" prefix — server-only
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return res.status(500).json({ error: "Server missing GEMINI_API_KEY" });
   }
@@ -13,16 +13,11 @@ export default async function handler(req, res) {
   const parts = [{ text: prompt }];
   if (imageBase64) {
     const base64Data = imageBase64.split(",")[1] || imageBase64;
-    parts.push({
-      inlineData: {
-        mimeType: "image/jpeg",
-        data: base64Data,
-      },
-    });
+    parts.push({ inlineData: { mimeType: "image/jpeg", data: base64Data } });
   }
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
     const body = {
       contents: [{ parts }],
       ...(wantJson ? { generationConfig: { responseMimeType: "application/json" } } : {}),
