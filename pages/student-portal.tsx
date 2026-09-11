@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { findExamRoom, ExamCandidate } from "../lib/room-store";
+import { findExamRoom, updateCandidateStatus, ExamCandidate } from "../lib/room-store";
 import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -11,7 +11,8 @@ import {
   Award, 
   Mail,
   User,
-  Hash
+  Hash,
+  ArrowLeft
 } from "lucide-react";
 
 interface QuestionItem {
@@ -45,9 +46,6 @@ export function StudentPortal() {
     if (!cleanPin || !studentName.trim()) return;
 
     try {
-      const candidatesKey = `ai_classroom_candidates_${cleanPin}`;
-      const existing: ExamCandidate[] = JSON.parse(localStorage.getItem(candidatesKey) || "[]");
-      
       const currentScore = finalScore !== undefined ? finalScore : score;
       const totalQ = activeQuestions.length || 1;
       const pct = Math.round((currentScore / totalQ) * 100);
@@ -64,17 +62,9 @@ export function StudentPortal() {
         updatedAt: new Date().toISOString(),
       };
 
-      const existingIndex = existing.findIndex(
-        (c) => c.studentName.toLowerCase() === studentName.trim().toLowerCase()
-      );
-
-      if (existingIndex >= 0) {
-        existing[existingIndex] = candidateRecord;
-      } else {
-        existing.push(candidateRecord);
-      }
-
-      localStorage.setItem(candidatesKey, JSON.stringify(existing));
+      // Use the shared room-store helper so the teacher dashboard (which reads
+      // from the same "ai_classroom_candidates_list" key) actually sees this candidate.
+      updateCandidateStatus(candidateRecord);
     } catch (e) {
       console.error("Failed to sync candidate state:", e);
     }
@@ -131,7 +121,6 @@ export function StudentPortal() {
       return;
     }
 
-    // 1. Direct query from room-store (used by teacher's saveExamRoom)
     const room = findExamRoom(cleanPin);
 
     if (!room) {
@@ -158,7 +147,6 @@ export function StudentPortal() {
     setCurrentQuestionIdx(0);
     setSelectedAnswers({});
 
-    // Notify teacher dashboard candidate joined
     setTimeout(() => syncCandidateToRoomStore("in-progress"), 100);
   };
 
@@ -200,6 +188,17 @@ export function StudentPortal() {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const handleBackToDesk = () => {
+    setExamStarted(false);
+    setExamSubmitted(false);
+    setActiveQuestions([]);
+    setSelectedAnswers({});
+    setCurrentQuestionIdx(0);
+    setScore(0);
+    setStrikes(0);
+    setExamPin("");
   };
 
   const handleDownloadPDF = () => {
@@ -394,10 +393,10 @@ export function StudentPortal() {
                     key={idx}
                     type="button"
                     onClick={() => handleSelectOption(idx)}
-                    className={`w-full text-left p-4 rounded-xl border text-sm font-medium transition-all flex items-center justify-between ${
+                    className={`w-full text-left p-4 rounded-xl border text-sm font-semibold transition-all flex items-center justify-between ${
                       isSelected
                         ? "bg-blue-600/20 border-blue-500 text-white shadow-md shadow-blue-500/10"
-                        : "bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-800/60 hover:text-white"
+                        : "bg-slate-800 border-slate-600 text-slate-100 hover:bg-slate-700 hover:text-white"
                     }`}
                   >
                     <span>{option}</span>
@@ -470,13 +469,22 @@ export function StudentPortal() {
               </p>
             </div>
 
-            <div className="pt-2">
+            <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
               <Button
                 onClick={handleDownloadPDF}
-                className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 mx-auto"
+                className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2"
               >
                 <Download className="w-4 h-4" />
                 <span>Download Official Scorecard (PDF)</span>
+              </Button>
+
+              <Button
+                onClick={handleBackToDesk}
+                variant="outline"
+                className="w-full sm:w-auto border-slate-700 text-slate-200 hover:bg-slate-800 hover:text-white font-bold py-3 px-8 rounded-xl flex items-center justify-center gap-2"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Back to Exam Desk</span>
               </Button>
             </div>
           </Card>
