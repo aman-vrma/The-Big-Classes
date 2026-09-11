@@ -1,0 +1,123 @@
+import { Link, useLocation } from "wouter";
+import { 
+  BookOpen, 
+  CheckSquare, 
+  FileText, 
+  LayoutDashboard, 
+  GraduationCap, 
+  History, 
+  ShieldCheck, 
+  LogOut,
+  Sparkles
+} from "lucide-react";
+import { useAuth } from "../lib/auth-context";
+
+export function Layout({ children }: { children: React.ReactNode }) {
+  const [location, setLocation] = useLocation();
+  const { user, logout } = useAuth();
+
+  const isStudentPerspective = location.startsWith("/student") || user?.role === "student";
+
+  // Restored Original Order: Dashboard -> Quiz -> Lesson Plan -> Assignment -> History -> Grader
+  const teacherNav = [
+    { label: "Faculty Dashboard", href: "/", icon: LayoutDashboard },
+    { label: "Quiz Arena", href: "/quiz", icon: CheckSquare },
+    { label: "Lesson Planner", href: "/lesson-plan", icon: BookOpen },
+    { label: "Assignment Maker", href: "/assignment", icon: FileText },
+    { label: "Conducted History", href: "/history", icon: History },
+    { label: "Paper Grader", href: "/grade", icon: GraduationCap },
+  ];
+
+  const studentNav = [
+    { label: "Exam Arena", href: "/student", icon: ShieldCheck },
+  ];
+
+  const currentNav = isStudentPerspective ? studentNav : teacherNav;
+
+  const handleExitToLogin = () => {
+    logout();
+    setLocation("/auth");
+  };
+
+  return (
+    <div className="flex h-screen w-screen bg-[#030712] text-slate-100 overflow-hidden font-sans">
+      {/* Sidebar with Distinct Surface */}
+      <aside className="w-64 border-r border-slate-800/80 bg-[#0a101f] flex flex-col justify-between shrink-0 shadow-2xl">
+        <div className="p-5 space-y-6">
+          {/* Brand Header */}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/25 shrink-0 border border-blue-400/20">
+              <Sparkles className="w-5 h-5 text-white" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="font-extrabold text-base text-white tracking-wider font-serif uppercase truncate">
+                THE BIG CLASSES
+              </h1>
+              <p className="text-[11px] font-semibold text-blue-400 truncate">
+                {isStudentPerspective ? "Student Arena" : "Faculty Command"}
+              </p>
+            </div>
+          </div>
+
+          {/* Navigation Links - 100% PURE WHITE TEXT & ICONS */}
+          <nav className="space-y-2 pt-2">
+            {currentNav.map((item) => {
+              const isActive = location === item.href || (item.href === "/student" && location === "/student-portal");
+              return (
+                <Link key={item.href} href={item.href}>
+                  <div
+                    style={{
+                      backgroundColor: isActive ? "#2563eb" : "transparent",
+                      border: isActive ? "1px solid #60a5fa" : "1px solid transparent",
+                    }}
+                    className={`flex items-center gap-3.5 px-4 py-3 rounded-xl cursor-pointer transition-all duration-150 ${
+                      isActive
+                        ? "shadow-lg shadow-blue-600/40"
+                        : "hover:bg-slate-800/70"
+                    }`}
+                  >
+                    <item.icon 
+                      style={{ color: "#ffffff" }}
+                      className="w-5 h-5 shrink-0" 
+                    />
+                    <span 
+                      style={{ color: "#ffffff" }}
+                      className={`text-sm tracking-wide leading-none ${isActive ? "font-bold" : "font-semibold"}`}
+                    >
+                      {item.label}
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* Sidebar Footer */}
+        <div className="p-4 border-t border-slate-800/80 bg-[#060b17] space-y-3">
+          <button
+            onClick={handleExitToLogin}
+            className="w-full py-2.5 px-3 rounded-xl border border-slate-700 bg-slate-800/60 text-xs font-semibold text-white hover:bg-slate-800 flex items-center justify-center gap-2 transition-all shadow-sm"
+          >
+            <LogOut className="w-3.5 h-3.5 text-red-400" />
+            <span>Switch Role / Logout</span>
+          </button>
+
+          {user && (
+            <div className="px-2 pt-1 border-t border-slate-800/60">
+              <p className="font-bold text-white text-xs truncate">{user.name}</p>
+              <p className="text-[11px] text-slate-300 truncate font-mono">{user.email}</p>
+            </div>
+          )}
+        </div>
+      </aside>
+
+      {/* Main Screen Container */}
+      <main className="flex-1 overflow-y-auto bg-[#030712] p-6 lg:p-10">
+        <div className="max-w-7xl mx-auto">
+          {children}
+        </div>
+      </main>
+    </div>
+  );
+}

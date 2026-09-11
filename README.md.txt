@@ -1,0 +1,1 @@
+"The AI Classroom Assistant is an intelligent platform designed to automate time-consuming teaching tasks. Using GPT-4o-mini, it instantly generates detailed lesson plans, interactive quizzes, and assignments, while offering an automated grading system to provide students with instant, high-quality feedback."
