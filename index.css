@@ -26,7 +26,7 @@
     --radius: 0.75rem;
   }
 
-  h1, h2, h3, h4, h5, h6, p, span, label, input, textarea {
+  h1, h2, h3, h4, h5, h6, p, label, input, textarea {
     color: #0f172a;
   }
 
