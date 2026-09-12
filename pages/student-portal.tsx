@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { findExamRoom, updateCandidateStatus, ExamCandidate } from "../lib/room-store";
+import { findExamRoom, updateCandidateStatus, hasStudentAttempted, ExamCandidate } from "../lib/room-store";
 import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -40,6 +40,7 @@ export function StudentPortal() {
   const [strikes, setStrikes] = useState(0);
   const [score, setScore] = useState(0);
 
+  // Helper to persist candidate updates into room-store storage for Teacher's view
   const syncCandidateToRoomStore = (status: "in-progress" | "completed" | "disqualified", finalScore?: number) => {
     const cleanPin = examPin.trim().toUpperCase();
     if (!cleanPin || !studentName.trim()) return;
@@ -130,6 +131,11 @@ export function StudentPortal() {
 
     if (!room.questions || room.questions.length === 0) {
       setPinError("This exam room contains no active questions.");
+      return;
+    }
+
+    if (hasStudentAttempted(studentEmail.trim(), cleanPin)) {
+      setPinError("You have already attempted this exam. Each student can only take a given exam once.");
       return;
     }
 
@@ -392,7 +398,7 @@ export function StudentPortal() {
                         : "bg-slate-800 border-slate-600 text-slate-100 hover:bg-slate-700 hover:text-white"
                     }`}
                   >
-                   <span className={isSelected ? "text-white" : "text-slate-100"}>{option}</span>
+                    <span className={isSelected ? "text-white" : "text-slate-100"}>{option}</span>
                     <div
                       className={`w-5 h-5 rounded-full border flex items-center justify-center ${
                         isSelected ? "border-blue-400 bg-blue-600 text-white" : "border-slate-700"
@@ -470,7 +476,7 @@ export function StudentPortal() {
                 <span>Download Official Scorecard (PDF)</span>
               </Button>
 
-                <Button
+              <Button
                 onClick={handleBackToDesk}
                 variant="outline"
                 className="w-full sm:w-auto bg-slate-800 border-slate-600 text-white hover:bg-slate-700 hover:text-white font-bold py-3 px-8 rounded-xl flex items-center justify-center gap-2"

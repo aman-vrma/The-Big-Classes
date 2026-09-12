@@ -30,6 +30,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const studentNav = [
     { label: "Exam Arena", href: "/student", icon: ShieldCheck },
+    { label: "My History", href: "/student-history", icon: History },
   ];
 
   const currentNav = isStudentPerspective ? studentNav : teacherNav;

@@ -116,3 +116,30 @@ export function exportCandidatesToCSV(roomCode?: string) {
   link.click();
   document.body.removeChild(link);
 }
+
+// Returns true if this email has already completed (or been disqualified from) this specific room's exam.
+export function hasStudentAttempted(email: string, roomCode: string): boolean {
+  if (!email || !roomCode) return false;
+  const candidates = getAllCandidates(roomCode);
+  return candidates.some(
+    (c) =>
+      (c.studentEmail || "").trim().toLowerCase() === email.trim().toLowerCase() &&
+      (c.status === "completed" || c.status === "disqualified")
+  );
+}
+
+// Returns every exam attempt (across all rooms) made by this email, newest first,
+// with the room's topic/subject attached for display.
+export function getCandidateHistory(email: string): (ExamCandidate & { topic?: string; subject?: string })[] {
+  if (!email) return [];
+  const rooms = getExamRooms();
+  const all = getAllCandidates();
+
+  return all
+    .filter((c) => (c.studentEmail || "").trim().toLowerCase() === email.trim().toLowerCase())
+    .map((c) => {
+      const room = rooms.find((r) => r.roomCode.trim().toUpperCase() === c.roomCode.trim().toUpperCase());
+      return { ...c, topic: room?.topic, subject: room?.subject };
+    })
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+}

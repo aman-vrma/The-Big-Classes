@@ -12,6 +12,7 @@ import { Assignment } from "./pages/assignment";
 import { Grade } from "./pages/grade";
 import { HistoryPage } from "./pages/history";
 import { StudentPortal } from "./pages/student-portal";
+import { StudentHistoryPage } from "./pages/student-history";
 import { AuthPage } from "./pages/auth-page";
 
 const queryClient = new QueryClient();
@@ -41,6 +42,7 @@ function AppRoutes() {
           <Route path="/" component={StudentPortal} />
           <Route path="/student" component={StudentPortal} />
           <Route path="/student-portal" component={StudentPortal} />
+          <Route path="/student-history" component={StudentHistoryPage} />
           <Route>
             <Redirect to="/student" />
           </Route>
