@@ -25,6 +25,14 @@
     --ring: 221 83% 53%;
     --radius: 0.75rem;
   }
+
+  h1, h2, h3, h4, h5, h6, p, span, label, input, textarea {
+    color: #0f172a;
+  }
+
+  .text-muted-foreground, .text-slate-500 {
+    color: #475569;
+  }
 }
 
 * {
@@ -34,12 +42,4 @@
 body {
   background-color: #f8fafc;
   color: #0f172a;
-}
-
-h1, h2, h3, h4, h5, h6, p, span, label, input, textarea {
-  color: #0f172a;
-}
-
-.text-muted-foreground, .text-slate-500 {
-  color: #475569;
 }
