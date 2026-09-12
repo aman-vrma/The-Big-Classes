@@ -392,7 +392,7 @@ export function StudentPortal() {
                         : "bg-slate-800 border-slate-600 text-slate-100 hover:bg-slate-700 hover:text-white"
                     }`}
                   >
-                    <span>{option}</span>
+                   <span className={isSelected ? "text-white" : "text-slate-100"}>{option}</span>
                     <div
                       className={`w-5 h-5 rounded-full border flex items-center justify-center ${
                         isSelected ? "border-blue-400 bg-blue-600 text-white" : "border-slate-700"
@@ -470,13 +470,13 @@ export function StudentPortal() {
                 <span>Download Official Scorecard (PDF)</span>
               </Button>
 
-              <Button
+                <Button
                 onClick={handleBackToDesk}
                 variant="outline"
-                className="w-full sm:w-auto border-slate-700 text-slate-200 hover:bg-slate-800 hover:text-white font-bold py-3 px-8 rounded-xl flex items-center justify-center gap-2"
+                className="w-full sm:w-auto bg-slate-800 border-slate-600 text-white hover:bg-slate-700 hover:text-white font-bold py-3 px-8 rounded-xl flex items-center justify-center gap-2"
               >
                 <ArrowLeft className="w-4 h-4" />
-                <span>Back to Exam Desk</span>
+                <span className="text-white">Back to Exam Desk</span>
               </Button>
             </div>
           </Card>
