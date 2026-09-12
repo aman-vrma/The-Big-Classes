@@ -5,10 +5,8 @@ export async function generateAIStream(prompt: string, onChunk: (text: string) =
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt }),
     });
-
     const data = await response.json();
     if (!response.ok) throw new Error(data?.error || "Failed to fetch response");
-
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated.";
     onChunk(text);
   } catch (error: any) {
@@ -22,10 +20,8 @@ export async function generateAIJson<T>(prompt: string, imageBase64?: string): P
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ prompt, imageBase64, wantJson: true }),
   });
-
   const data = await response.json();
   if (!response.ok) throw new Error(data?.error || "Failed to fetch structured response");
-
   let rawJson = data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
   rawJson = rawJson.replace(/^```json/m, "").replace(/```$/m, "").trim();
   return JSON.parse(rawJson);

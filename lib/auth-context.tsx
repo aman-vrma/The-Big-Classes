@@ -1,4 +1,12 @@
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile,
+  signOut,
+} from "firebase/auth";
+import { auth } from "./firebase";
 
 export interface User {
   id: string;
@@ -9,42 +17,62 @@ export interface User {
 
 interface AuthContextType {
   user: User | null;
-  loginAs: (role: "teacher" | "student", name?: string, email?: string) => void;
+  loading: boolean;
+  login: (email: string, password: string, role: "teacher" | "student") => Promise<void>;
+  signup: (name: string, email: string, password: string, role: "teacher" | "student") => Promise<void>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  // Fresh start without forcing auto-login so login screen always appears
-  const [user, setUser] = useState<User | null>(() => {
-    try {
-      const saved = sessionStorage.getItem("the_big_classes_user");
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
+const roleKey = (email: string) => `the_big_classes_role_${email.trim().toLowerCase()}`;
 
-  const loginAs = (role: "teacher" | "student", name?: string, email?: string) => {
-    const newUser: User = {
-      id: role === "teacher" ? "teacher_1" : "student_1",
-      name: name || (role === "teacher" ? "Faculty Admin" : "Candidate"),
-      email: email || (role === "teacher" ? "faculty@thebigclasses.edu" : "student@thebigclasses.edu"),
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        const savedRole =
+          (localStorage.getItem(roleKey(firebaseUser.email || "")) as "teacher" | "student") || "student";
+        setUser({
+          id: firebaseUser.uid,
+          name: firebaseUser.displayName || firebaseUser.email || "User",
+          email: firebaseUser.email || "",
+          role: savedRole,
+        });
+      } else {
+        setUser(null);
+      }
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const login = async (email: string, password: string, role: "teacher" | "student") => {
+    localStorage.setItem(roleKey(email), role);
+    await signInWithEmailAndPassword(auth, email.trim(), password);
+  };
+
+  const signup = async (name: string, email: string, password: string, role: "teacher" | "student") => {
+    localStorage.setItem(roleKey(email), role);
+    const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+    await updateProfile(credential.user, { displayName: name });
+    setUser({
+      id: credential.user.uid,
+      name,
+      email: credential.user.email || "",
       role,
-    };
-    setUser(newUser);
-    sessionStorage.setItem("the_big_classes_user", JSON.stringify(newUser));
+    });
   };
 
   const logout = () => {
-    setUser(null);
-    sessionStorage.removeItem("the_big_classes_user");
-    localStorage.removeItem("the_big_classes_user");
+    signOut(auth);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loginAs, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, signup, logout }}>
       {children}
     </AuthContext.Provider>
   );
