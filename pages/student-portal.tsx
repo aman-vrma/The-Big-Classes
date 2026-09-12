@@ -40,7 +40,6 @@ export function StudentPortal() {
   const [strikes, setStrikes] = useState(0);
   const [score, setScore] = useState(0);
 
-  // Helper to persist candidate updates into room-store storage for Teacher's view
   const syncCandidateToRoomStore = (status: "in-progress" | "completed" | "disqualified", finalScore?: number) => {
     const cleanPin = examPin.trim().toUpperCase();
     if (!cleanPin || !studentName.trim()) return;
@@ -62,15 +61,12 @@ export function StudentPortal() {
         updatedAt: new Date().toISOString(),
       };
 
-      // Use the shared room-store helper so the teacher dashboard (which reads
-      // from the same "ai_classroom_candidates_list" key) actually sees this candidate.
       updateCandidateStatus(candidateRecord);
     } catch (e) {
       console.error("Failed to sync candidate state:", e);
     }
   };
 
-  // Tab switch anti-cheating detection
   useEffect(() => {
     if (!examStarted || examSubmitted) return;
 
@@ -92,7 +88,6 @@ export function StudentPortal() {
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [examStarted, examSubmitted, selectedAnswers, activeQuestions, strikes]);
 
-  // Timer countdown
   useEffect(() => {
     if (!examStarted || examSubmitted) return;
 
@@ -257,7 +252,6 @@ export function StudentPortal() {
 
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
-      {/* 1. ROOM ACCESS ENTRY */}
       {!examStarted && !examSubmitted && (
         <div className="space-y-6">
           <header className="border-b border-slate-800 pb-5">
@@ -351,7 +345,6 @@ export function StudentPortal() {
         </div>
       )}
 
-      {/* 2. ACTIVE EXAM ROOM */}
       {examStarted && !examSubmitted && (
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-2xl bg-slate-900 border border-slate-800">
@@ -442,7 +435,6 @@ export function StudentPortal() {
         </div>
       )}
 
-      {/* 3. SUBMITTED VIEW */}
       {examSubmitted && (
         <div className="space-y-6">
           <Card className="p-8 border-slate-800 bg-slate-900/90 shadow-2xl rounded-2xl text-center space-y-6 max-w-xl mx-auto">
