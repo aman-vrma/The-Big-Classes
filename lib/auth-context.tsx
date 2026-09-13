@@ -6,7 +6,8 @@ import {
   updateProfile,
   signOut,
 } from "firebase/auth";
-import { auth } from "./firebase";
+import { doc, setDoc, getDoc } from "firebase/firestore";
+import { auth, db } from "./firebase";
 
 export interface User {
   id: string;
@@ -18,29 +19,38 @@ export interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string, role: "teacher" | "student") => Promise<void>;
+  // login now returns the account's REAL stored role, so the UI can verify
+  // the person clicked the correct Faculty/Student card.
+  login: (email: string, password: string) => Promise<"teacher" | "student">;
   signup: (name: string, email: string, password: string, role: "teacher" | "student") => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const roleKey = (email: string) => `the_big_classes_role_${email.trim().toLowerCase()}`;
+async function fetchUserProfile(uid: string): Promise<{ name?: string; role?: "teacher" | "student" } | null> {
+  try {
+    const snap = await getDoc(doc(db, "users", uid));
+    return snap.exists() ? (snap.data() as { name?: string; role?: "teacher" | "student" }) : null;
+  } catch (e) {
+    console.error("Failed to fetch user profile:", e);
+    return null;
+  }
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        const savedRole =
-          (localStorage.getItem(roleKey(firebaseUser.email || "")) as "teacher" | "student") || "student";
+        const profile = await fetchUserProfile(firebaseUser.uid);
         setUser({
           id: firebaseUser.uid,
-          name: firebaseUser.displayName || firebaseUser.email || "User",
+          name: profile?.name || firebaseUser.displayName || firebaseUser.email || "User",
           email: firebaseUser.email || "",
-          role: savedRole,
+          role: profile?.role || "student",
         });
       } else {
         setUser(null);
@@ -50,15 +60,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  const login = async (email: string, password: string, role: "teacher" | "student") => {
-    localStorage.setItem(roleKey(email), role);
-    await signInWithEmailAndPassword(auth, email.trim(), password);
+  const login = async (email: string, password: string): Promise<"teacher" | "student"> => {
+    const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
+    const profile = await fetchUserProfile(credential.user.uid);
+    return profile?.role || "student";
   };
 
   const signup = async (name: string, email: string, password: string, role: "teacher" | "student") => {
-    localStorage.setItem(roleKey(email), role);
     const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
     await updateProfile(credential.user, { displayName: name });
+    await setDoc(doc(db, "users", credential.user.uid), {
+      name,
+      email: email.trim(),
+      role,
+    });
     setUser({
       id: credential.user.uid,
       name,
@@ -67,8 +82,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const logout = () => {
-    signOut(auth);
+  const logout = async () => {
+    await signOut(auth);
   };
 
   return (

@@ -38,7 +38,7 @@ function friendlyFirebaseError(code: string): string {
 
 export function AuthPage() {
   const [, setLocation] = useLocation();
-  const { login, signup } = useAuth();
+  const { login, signup, logout } = useAuth();
 
   const [activeStep, setActiveStep] = useState<"select" | "auth">("select");
   const [mode, setMode] = useState<"login" | "signup">("login");
@@ -73,10 +73,17 @@ export function AuthPage() {
     try {
       if (mode === "signup") {
         await signup(name.trim(), email.trim(), password, selectedRole);
+        setLocation(selectedRole === "teacher" ? "/" : "/student");
       } else {
-        await login(email.trim(), password, selectedRole);
+        const actualRole = await login(email.trim(), password);
+        if (actualRole !== selectedRole) {
+          await logout();
+          const correctCard = actualRole === "teacher" ? "Faculty" : "Student";
+          setErrorMsg(`This account is registered as a ${correctCard} account. Please go back and use the "${correctCard}" card to log in.`);
+          return;
+        }
+        setLocation(actualRole === "teacher" ? "/" : "/student");
       }
-      setLocation(selectedRole === "teacher" ? "/" : "/student");
     } catch (err: any) {
       setErrorMsg(friendlyFirebaseError(err?.code || ""));
     } finally {

@@ -1,35 +1,35 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { getCandidateHistory, ExamCandidate } from "../lib/room-store";
+import { useAuth } from "../lib/auth-context";
 import { Card } from "../components/ui/card";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { History, Mail, Award, AlertTriangle, CheckCircle2, XCircle, Clock3, Loader2 } from "lucide-react";
+import { History, Award, AlertTriangle, CheckCircle2, XCircle, Clock3, Loader2 } from "lucide-react";
 
 type HistoryRecord = ExamCandidate & { topic?: string; subject?: string };
 
 export function StudentHistoryPage() {
-  const [emailInput, setEmailInput] = useState("");
-  const [searchedEmail, setSearchedEmail] = useState("");
+  const { user } = useAuth();
   const [records, setRecords] = useState<HistoryRecord[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!emailInput.trim()) return;
-
-    const email = emailInput.trim();
-    setSearchedEmail(email);
-    setLoading(true);
-    try {
-      const data = await getCandidateHistory(email);
-      setRecords(data);
-    } catch (err) {
-      console.error("Failed to load history:", err);
-      setRecords([]);
-    } finally {
+  useEffect(() => {
+    if (!user?.email) {
       setLoading(false);
+      return;
     }
-  };
+
+    (async () => {
+      setLoading(true);
+      try {
+        const data = await getCandidateHistory(user.email);
+        setRecords(data);
+      } catch (err) {
+        console.error("Failed to load history:", err);
+        setRecords([]);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [user?.email]);
 
   const statusBadge = (status: string) => {
     if (status === "completed") {
@@ -61,46 +61,28 @@ export function StudentHistoryPage() {
           My Exam History
         </h1>
         <p className="text-slate-400 mt-1 text-sm">
-          Enter the email you used to take exams, and see every attempt and score.
+          Attempts made by <span className="text-blue-400 font-semibold">{user?.email}</span>
         </p>
       </header>
 
-      <Card className="p-6 border-slate-800 bg-slate-900/90 shadow-xl rounded-2xl">
-        <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-3">
-          <div className="flex-1 relative">
-            <Mail className="w-4 h-4 text-blue-400 absolute left-3.5 top-3.5" />
-            <Input
-              type="email"
-              required
-              value={emailInput}
-              onChange={(e) => setEmailInput(e.target.value)}
-              placeholder="e.g. student@thebigclasses.edu"
-              className="bg-slate-950 border-slate-700 text-white placeholder:text-slate-500 h-11 pl-10"
-            />
-          </div>
-          <Button
-            type="submit"
-            disabled={loading}
-            className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 h-11 rounded-xl shadow-lg shadow-blue-600/30 disabled:opacity-60"
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "View History"}
-          </Button>
-        </form>
-      </Card>
+      {loading && (
+        <Card className="p-12 border-slate-800 bg-slate-900/90 rounded-2xl text-center">
+          <Loader2 className="w-6 h-6 text-blue-400 animate-spin mx-auto mb-2" />
+          <p className="text-slate-400 text-sm">Loading your history...</p>
+        </Card>
+      )}
 
-      {!loading && searchedEmail && records.length === 0 && (
+      {!loading && records.length === 0 && (
         <Card className="p-8 border-slate-800 bg-slate-900/90 rounded-2xl text-center space-y-2">
           <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto" />
-          <p className="text-slate-300 text-sm font-semibold">
-            No exam attempts found for <span className="text-white">{searchedEmail}</span>
-          </p>
+          <p className="text-slate-300 text-sm font-semibold">No exam attempts found yet.</p>
           <p className="text-slate-500 text-xs">
-            Make sure you're using the exact same email you entered while taking the exam.
+            Once you take an exam, it will show up here automatically.
           </p>
         </Card>
       )}
 
-      {records.length > 0 && (
+      {!loading && records.length > 0 && (
         <div className="space-y-4">
           {records.map((r, idx) => (
             <Card
