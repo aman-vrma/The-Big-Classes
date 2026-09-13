@@ -50,6 +50,37 @@ export function useGetClassroomHistory() {
   });
 }
 
+// Shared helper — every generator (quiz, grade, lesson plan, assignment) saves
+// its result through this so all of them show up in the same history list.
+export function saveClassroomHistoryItem(entry: Omit<ClassroomHistoryItem, "id" | "createdAt">): ClassroomHistoryItem {
+  const existing: ClassroomHistoryItem[] = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+  const newItem: ClassroomHistoryItem = {
+    id: Date.now().toString(),
+    createdAt: new Date().toISOString(),
+    ...entry,
+  };
+  existing.unshift(newItem);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
+  return newItem;
+}
+
+export function deleteClassroomHistoryItem(id: string): void {
+  const existing: ClassroomHistoryItem[] = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(existing.filter((item) => item.id !== id)));
+}
+
+export function useDeleteClassroomHistoryItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      deleteClassroomHistoryItem(id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: getGetClassroomHistoryQueryKey() });
+    },
+  });
+}
+
 export function useGenerateQuiz() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -76,16 +107,12 @@ export function useGenerateQuiz() {
 
       const result = await generateAIJson<QuizResult>(prompt);
 
-      const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-      existing.unshift({
-        id: Date.now().toString(),
+      saveClassroomHistoryItem({
         type: "quiz",
         topic: data.topic,
         subject: data.subject,
-        createdAt: new Date().toISOString(),
         content: result,
       });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
 
       return result;
     },
@@ -125,16 +152,12 @@ Rubric / Key Points: ${data.rubric || "Standard conceptual depth and accuracy"}`
 
       const result = await generateAIJson<GradeResult>(prompt, data.image);
 
-      const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-      existing.unshift({
-        id: Date.now().toString(),
+      saveClassroomHistoryItem({
         type: "grade",
         topic: data.question.slice(0, 35) + "...",
         subject: "Answer Evaluation",
-        createdAt: new Date().toISOString(),
         content: result,
       });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
 
       return result;
     },

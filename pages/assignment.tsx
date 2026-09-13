@@ -5,7 +5,7 @@ import * as z from "zod";
 import { useStream } from "../hooks/use-stream";
 import { Markdown } from "../components/markdown";
 import { useQueryClient } from "@tanstack/react-query";
-import { getGetClassroomHistoryQueryKey } from "../lib/api-client";
+import { getGetClassroomHistoryQueryKey, saveClassroomHistoryItem } from "../lib/api-client";
 import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import {
@@ -44,8 +44,18 @@ export function Assignment() {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setHasGenerated(true);
-    await startStream("/api/classroom/assignment", values);
-    queryClient.invalidateQueries({ queryKey: getGetClassroomHistoryQueryKey() });
+    const generated = await startStream("/api/classroom/assignment", values);
+
+    if (generated) {
+      saveClassroomHistoryItem({
+        type: "assignment",
+        topic: values.topic,
+        subject: values.subject,
+        title: `${values.topic} (${values.assignmentType})`,
+        content: generated,
+      });
+      queryClient.invalidateQueries({ queryKey: getGetClassroomHistoryQueryKey() });
+    }
   };
 
   return (

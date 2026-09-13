@@ -7,9 +7,10 @@ export function useStream() {
   const [isStreaming, setIsStreaming] = useState(false);
   const { toast } = useToast();
 
-  const startStream = useCallback(async (endpoint: string, body: any) => {
+  const startStream = useCallback(async (endpoint: string, body: any): Promise<string> => {
     setIsStreaming(true);
     setContent("");
+    let finalText = "";
 
     let prompt = "";
     if (endpoint.includes("lesson-plan")) {
@@ -48,6 +49,7 @@ Format with clean Markdown.`;
 
     try {
       await generateAIStream(prompt, (chunk) => {
+        finalText = chunk;
         setContent(chunk);
       });
     } catch (err: any) {
@@ -59,6 +61,8 @@ Format with clean Markdown.`;
     } finally {
       setIsStreaming(false);
     }
+
+    return finalText;
   }, [toast]);
 
   return { content, isStreaming, startStream };
