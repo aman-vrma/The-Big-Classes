@@ -27,15 +27,8 @@ function NotFound() {
 }
 
 function AppRoutes() {
-    const { user, loading } = useAuth();
+  const { user } = useAuth();
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#030712] flex items-center justify-center">
-        <p className="text-slate-400 text-sm">Loading...</p>
-      </div>
-    );
-  }
   // 1. Agar user logged in nahi hai -> ALWAYS SHOW AUTH / LOGIN SCREEN
   if (!user) {
     return <AuthPage />;

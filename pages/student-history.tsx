@@ -1,20 +1,34 @@
 import { useState } from "react";
-import { getCandidateHistory } from "../lib/room-store";
+import { getCandidateHistory, ExamCandidate } from "../lib/room-store";
 import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { History, Mail, Award, AlertTriangle, CheckCircle2, XCircle, Clock3 } from "lucide-react";
+import { History, Mail, Award, AlertTriangle, CheckCircle2, XCircle, Clock3, Loader2 } from "lucide-react";
+
+type HistoryRecord = ExamCandidate & { topic?: string; subject?: string };
 
 export function StudentHistoryPage() {
   const [emailInput, setEmailInput] = useState("");
   const [searchedEmail, setSearchedEmail] = useState("");
+  const [records, setRecords] = useState<HistoryRecord[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const records = searchedEmail ? getCandidateHistory(searchedEmail) : [];
-
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!emailInput.trim()) return;
-    setSearchedEmail(emailInput.trim());
+
+    const email = emailInput.trim();
+    setSearchedEmail(email);
+    setLoading(true);
+    try {
+      const data = await getCandidateHistory(email);
+      setRecords(data);
+    } catch (err) {
+      console.error("Failed to load history:", err);
+      setRecords([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const statusBadge = (status: string) => {
@@ -66,14 +80,15 @@ export function StudentHistoryPage() {
           </div>
           <Button
             type="submit"
-            className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 h-11 rounded-xl shadow-lg shadow-blue-600/30"
+            disabled={loading}
+            className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 h-11 rounded-xl shadow-lg shadow-blue-600/30 disabled:opacity-60"
           >
-            View History
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "View History"}
           </Button>
         </form>
       </Card>
 
-      {searchedEmail && records.length === 0 && (
+      {!loading && searchedEmail && records.length === 0 && (
         <Card className="p-8 border-slate-800 bg-slate-900/90 rounded-2xl text-center space-y-2">
           <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto" />
           <p className="text-slate-300 text-sm font-semibold">

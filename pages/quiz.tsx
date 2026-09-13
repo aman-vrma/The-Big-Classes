@@ -123,12 +123,16 @@ export function Quiz() {
   }, [result, hostedRoomCode]);
 
   // Load and refresh candidates
-  const loadCandidates = (pin: string) => {
-    const data = getAllCandidates(pin);
-    setCandidates(data);
-    const room = findExamRoom(pin);
-    if (room) {
-      setIsRoomClosed(room.status === "closed");
+  const loadCandidates = async (pin: string) => {
+    try {
+      const data = await getAllCandidates(pin);
+      setCandidates(data);
+      const room = await findExamRoom(pin);
+      if (room) {
+        setIsRoomClosed(room.status === "closed");
+      }
+    } catch (err) {
+      console.error("Failed to load candidates:", err);
     }
   };
 
@@ -209,31 +213,41 @@ export function Quiz() {
     });
   };
 
-  const handleHostExam = () => {
+  const handleHostExam = async () => {
     if (!result) return;
     const pin = Math.floor(100000 + Math.random() * 900000).toString();
 
-    saveExamRoom({
-      roomCode: pin,
-      topic: result.topic,
-      subject: form.getValues("subject") || "General",
-      createdAt: new Date().toISOString(),
-      durationMinutes: form.getValues("durationMinutes") || 10,
-      status: "active",
-      questions: result.questions,
-    });
+    try {
+      await saveExamRoom({
+        roomCode: pin,
+        topic: result.topic,
+        subject: form.getValues("subject") || "General",
+        createdAt: new Date().toISOString(),
+        durationMinutes: form.getValues("durationMinutes") || 10,
+        status: "active",
+        questions: result.questions,
+      });
 
-    setHostedRoomCode(pin);
-    setIsRoomClosed(false);
-    loadCandidates(pin);
+      setHostedRoomCode(pin);
+      setIsRoomClosed(false);
+      loadCandidates(pin);
+    } catch (err) {
+      console.error("Failed to host exam room:", err);
+      alert("Failed to create exam room. Please try again.");
+    }
   };
 
-  const handleEndRoom = () => {
+  const handleEndRoom = async () => {
     if (!hostedRoomCode) return;
     if (confirm(`Are you sure you want to end Room PIN: ${hostedRoomCode}? No further submissions will be accepted.`)) {
-      closeExamRoom(hostedRoomCode);
-      setIsRoomClosed(true);
-      loadCandidates(hostedRoomCode);
+      try {
+        await closeExamRoom(hostedRoomCode);
+        setIsRoomClosed(true);
+        loadCandidates(hostedRoomCode);
+      } catch (err) {
+        console.error("Failed to close room:", err);
+        alert("Failed to end the room. Please try again.");
+      }
     }
   };
 

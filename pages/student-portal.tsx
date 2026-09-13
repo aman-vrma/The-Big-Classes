@@ -12,7 +12,8 @@ import {
   Mail,
   User,
   Hash,
-  ArrowLeft
+  ArrowLeft,
+  Loader2
 } from "lucide-react";
 
 interface QuestionItem {
@@ -30,6 +31,7 @@ export function StudentPortal() {
   const [examStarted, setExamStarted] = useState(false);
   const [examSubmitted, setExamSubmitted] = useState(false);
   const [pinError, setPinError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const [activeQuestions, setActiveQuestions] = useState<QuestionItem[]>([]);
   const [quizTitle, setQuizTitle] = useState("Proctored Examination");
@@ -40,8 +42,10 @@ export function StudentPortal() {
   const [strikes, setStrikes] = useState(0);
   const [score, setScore] = useState(0);
 
-  // Helper to persist candidate updates into room-store storage for Teacher's view
-  const syncCandidateToRoomStore = (status: "in-progress" | "completed" | "disqualified", finalScore?: number) => {
+  const syncCandidateToRoomStore = async (
+    status: "in-progress" | "completed" | "disqualified",
+    finalScore?: number
+  ) => {
     const cleanPin = examPin.trim().toUpperCase();
     if (!cleanPin || !studentName.trim()) return;
 
@@ -62,7 +66,7 @@ export function StudentPortal() {
         updatedAt: new Date().toISOString(),
       };
 
-      updateCandidateStatus(candidateRecord);
+      await updateCandidateStatus(candidateRecord);
     } catch (e) {
       console.error("Failed to sync candidate state:", e);
     }
@@ -106,7 +110,7 @@ export function StudentPortal() {
     return () => clearInterval(timer);
   }, [examStarted, examSubmitted, selectedAnswers, activeQuestions, strikes]);
 
-  const handleStartExam = (e: React.FormEvent) => {
+  const handleStartExam = async (e: React.FormEvent) => {
     e.preventDefault();
     setPinError("");
 
@@ -117,38 +121,47 @@ export function StudentPortal() {
       return;
     }
 
-    const room = findExamRoom(cleanPin);
+    setSubmitting(true);
+    try {
+      const room = await findExamRoom(cleanPin);
 
-    if (!room) {
-      setPinError(`Room PIN "${cleanPin}" not found. Please verify with faculty.`);
-      return;
+      if (!room) {
+        setPinError(`Room PIN "${cleanPin}" not found. Please verify with faculty.`);
+        return;
+      }
+
+      if (room.status === "closed") {
+        setPinError(`Room PIN "${cleanPin}" has already been closed by faculty.`);
+        return;
+      }
+
+      if (!room.questions || room.questions.length === 0) {
+        setPinError("This exam room contains no active questions.");
+        return;
+      }
+
+      const alreadyAttempted = await hasStudentAttempted(studentEmail.trim(), cleanPin);
+      if (alreadyAttempted) {
+        setPinError("You have already attempted this exam. Each student can only take a given exam once.");
+        return;
+      }
+
+      setActiveQuestions(room.questions);
+      setQuizTitle(room.topic || "Proctored Examination");
+      setTimeLeft((room.durationMinutes || 10) * 60);
+      setExamStarted(true);
+      setExamSubmitted(false);
+      setStrikes(0);
+      setCurrentQuestionIdx(0);
+      setSelectedAnswers({});
+
+      setTimeout(() => syncCandidateToRoomStore("in-progress"), 100);
+    } catch (err) {
+      console.error("Failed to start exam:", err);
+      setPinError("Something went wrong while loading the exam. Please try again.");
+    } finally {
+      setSubmitting(false);
     }
-
-    if (room.status === "closed") {
-      setPinError(`Room PIN "${cleanPin}" has already been closed by faculty.`);
-      return;
-    }
-
-    if (!room.questions || room.questions.length === 0) {
-      setPinError("This exam room contains no active questions.");
-      return;
-    }
-
-    if (hasStudentAttempted(studentEmail.trim(), cleanPin)) {
-      setPinError("You have already attempted this exam. Each student can only take a given exam once.");
-      return;
-    }
-
-    setActiveQuestions(room.questions);
-    setQuizTitle(room.topic || "Proctored Examination");
-    setTimeLeft((room.durationMinutes || 10) * 60);
-    setExamStarted(true);
-    setExamSubmitted(false);
-    setStrikes(0);
-    setCurrentQuestionIdx(0);
-    setSelectedAnswers({});
-
-    setTimeout(() => syncCandidateToRoomStore("in-progress"), 100);
   };
 
   const handleSelectOption = (optionIdx: number) => {
@@ -158,7 +171,7 @@ export function StudentPortal() {
     }));
   };
 
-  const triggerFinalSubmit = (
+  const triggerFinalSubmit = async (
     answers: { [key: number]: number },
     questions: QuestionItem[],
     currentStrikes = strikes
@@ -182,7 +195,7 @@ export function StudentPortal() {
     setExamSubmitted(true);
 
     const finalStatus = currentStrikes >= 3 ? "disqualified" : "completed";
-    syncCandidateToRoomStore(finalStatus, finalScore);
+    await syncCandidateToRoomStore(finalStatus, finalScore);
   };
 
   const formatTime = (seconds: number) => {
@@ -342,9 +355,16 @@ export function StudentPortal() {
 
               <Button
                 type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 text-sm rounded-xl shadow-lg shadow-blue-600/30 transition-all"
+                disabled={submitting}
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 text-sm rounded-xl shadow-lg shadow-blue-600/30 transition-all disabled:opacity-60 flex items-center justify-center gap-2"
               >
-                Authenticate & Load Faculty Exam
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Verifying...
+                  </>
+                ) : (
+                  "Authenticate & Load Faculty Exam"
+                )}
               </Button>
             </form>
           </Card>

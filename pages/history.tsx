@@ -6,7 +6,8 @@ import {
   getExamRooms, 
   getAllCandidates, 
   exportCandidatesToCSV,
-  ExamRoom 
+  ExamRoom,
+  ExamCandidate
 } from "../lib/room-store";
 import { 
   History as HistoryIcon, 
@@ -26,16 +27,29 @@ export function HistoryPage() {
   const [, setLocation] = useLocation();
   const [examRooms, setExamRooms] = useState<ExamRoom[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<ExamRoom | null>(null);
+  const [allCandidates, setAllCandidates] = useState<ExamCandidate[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const rooms = getExamRooms();
-    setExamRooms(rooms);
-    if (rooms.length > 0) {
-      setSelectedRoom(rooms[0]);
-    }
+    (async () => {
+      try {
+        const [rooms, candidates] = await Promise.all([getExamRooms(), getAllCandidates()]);
+        setExamRooms(rooms);
+        setAllCandidates(candidates);
+        if (rooms.length > 0) {
+          setSelectedRoom(rooms[0]);
+        }
+      } catch (err) {
+        console.error("Failed to load history:", err);
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, []);
 
-  const candidatesForRoom = selectedRoom ? getAllCandidates(selectedRoom.roomCode) : [];
+  const candidatesForRoom = selectedRoom
+    ? allCandidates.filter((c) => c.roomCode.trim().toUpperCase() === selectedRoom.roomCode.trim().toUpperCase())
+    : [];
 
   const handleOpenInLive = (room: ExamRoom) => {
     localStorage.setItem(
@@ -76,7 +90,11 @@ export function HistoryPage() {
         </Button>
       </header>
 
-      {examRooms.length === 0 ? (
+      {loading ? (
+        <Card className="p-16 text-center border-slate-200 bg-white space-y-3">
+          <p className="text-sm text-slate-500">Loading exam history...</p>
+        </Card>
+      ) : examRooms.length === 0 ? (
         <Card className="p-16 text-center border-slate-200 bg-white space-y-3">
           <HistoryIcon className="w-12 h-12 text-slate-300 mx-auto" />
           <h2 className="text-lg font-bold text-slate-800">No Exams Recorded in Archive</h2>
@@ -100,7 +118,9 @@ export function HistoryPage() {
 
             {examRooms.map((room) => {
               const isSelected = selectedRoom?.roomCode === room.roomCode;
-              const roomCandidates = getAllCandidates(room.roomCode);
+              const roomCandidates = allCandidates.filter(
+                (c) => c.roomCode.trim().toUpperCase() === room.roomCode.trim().toUpperCase()
+              );
 
               return (
                 <div
