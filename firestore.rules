@@ -43,5 +43,14 @@ service cloud.firestore {
       allow update: if resource.data.status == "in-progress"
         && request.resource.data.status == "in-progress";
     }
+
+    // Lesson plans, assignments, quizzes-as-drafted, and grading reports a teacher has
+    // generated. Only the owning teacher can ever read, create, or delete their own —
+    // this is what stops two different teacher accounts from seeing each other's content.
+    match /generatedContent/{docId} {
+      allow read: if request.auth != null && resource.data.teacherId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.teacherId == request.auth.uid;
+      allow delete: if request.auth != null && resource.data.teacherId == request.auth.uid;
+    }
   }
 }

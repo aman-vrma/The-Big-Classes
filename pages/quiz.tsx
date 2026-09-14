@@ -99,9 +99,8 @@ export function Quiz() {
   const [candidates, setCandidates] = useState<ExamCandidate[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const generateQuiz = useGenerateQuiz();
-
   const { user } = useAuth();
+  const generateQuiz = useGenerateQuiz(user?.id);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -211,7 +210,7 @@ export function Quiz() {
     }, {
       onSuccess: (data) => {
         setResult(data);
-        queryClient.invalidateQueries({ queryKey: getGetClassroomHistoryQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetClassroomHistoryQueryKey(user?.id) });
       }
     });
   };

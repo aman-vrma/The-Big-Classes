@@ -4,12 +4,13 @@ import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Markdown } from "../components/markdown";
 import { 
-  getExamRooms, 
+  getExamRoomsForTeacher, 
   getAllCandidates, 
   exportCandidatesToCSV,
   ExamRoom,
   ExamCandidate
 } from "../lib/room-store";
+import { useAuth } from "../lib/auth-context";
 import {
   useGetClassroomHistory,
   useDeleteClassroomHistoryItem,
@@ -135,18 +136,24 @@ export function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState<string>("all");
 
-  const { data: generatedHistory = [], isLoading: generatedLoading } = useGetClassroomHistory();
-  const deleteHistoryItem = useDeleteClassroomHistoryItem();
+  const { user } = useAuth();
+  const { data: generatedHistory = [], isLoading: generatedLoading } = useGetClassroomHistory(user?.id);
+  const deleteHistoryItem = useDeleteClassroomHistoryItem(user?.id);
 
   const filteredGeneratedHistory =
     typeFilter === "all" ? generatedHistory : generatedHistory.filter((item) => item.type === typeFilter);
 
   useEffect(() => {
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
     (async () => {
       try {
-        const [rooms, candidates] = await Promise.all([getExamRooms(), getAllCandidates()]);
+        const rooms = await getExamRoomsForTeacher(user.id);
+        const candidateLists = await Promise.all(rooms.map((r) => getAllCandidates(r.roomCode)));
         setExamRooms(rooms);
-        setAllCandidates(candidates);
+        setAllCandidates(candidateLists.flat());
         if (rooms.length > 0) {
           setSelectedRoom(rooms[0]);
         }
@@ -156,7 +163,7 @@ export function HistoryPage() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [user?.id]);
 
   const candidatesForRoom = selectedRoom
     ? allCandidates.filter((c) => c.roomCode.trim().toUpperCase() === selectedRoom.roomCode.trim().toUpperCase())

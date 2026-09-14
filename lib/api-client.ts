@@ -1,4 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { collection, addDoc, getDocs, deleteDoc, doc, query, where } from "firebase/firestore";
+import { db } from "./firebase";
 import { generateAIJson } from "./gemini";
 
 export interface QuizQuestion {
@@ -34,54 +36,53 @@ export interface ClassroomHistoryItem {
   content: any;
 }
 
-const STORAGE_KEY = "ai_classroom_history";
+const COLLECTION = "generatedContent";
 
-export function getGetClassroomHistoryQueryKey() {
-  return ["classroom-history"];
+export function getGetClassroomHistoryQueryKey(teacherId?: string) {
+  return ["classroom-history", teacherId || "none"];
 }
 
-export function useGetClassroomHistory() {
+// Every generator (quiz, grade, lesson plan, assignment) saves its result through
+// this, tagged with the owning teacher's uid, so each teacher only ever sees their
+// own generated content.
+export async function saveClassroomHistoryItem(
+  teacherId: string,
+  entry: Omit<ClassroomHistoryItem, "id" | "createdAt">
+): Promise<void> {
+  if (!teacherId) return;
+  await addDoc(collection(db, COLLECTION), {
+    ...entry,
+    teacherId,
+    createdAt: new Date().toISOString(),
+  });
+}
+
+export function useGetClassroomHistory(teacherId?: string) {
   return useQuery({
-    queryKey: getGetClassroomHistoryQueryKey(),
-    queryFn: (): ClassroomHistoryItem[] => {
-      const data = localStorage.getItem(STORAGE_KEY);
-      return data ? JSON.parse(data) : [];
+    queryKey: getGetClassroomHistoryQueryKey(teacherId),
+    enabled: !!teacherId,
+    queryFn: async (): Promise<ClassroomHistoryItem[]> => {
+      const q = query(collection(db, COLLECTION), where("teacherId", "==", teacherId));
+      const snap = await getDocs(q);
+      const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ClassroomHistoryItem, "id">) }));
+      return items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     },
   });
 }
 
-// Shared helper — every generator (quiz, grade, lesson plan, assignment) saves
-// its result through this so all of them show up in the same history list.
-export function saveClassroomHistoryItem(entry: Omit<ClassroomHistoryItem, "id" | "createdAt">): ClassroomHistoryItem {
-  const existing: ClassroomHistoryItem[] = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-  const newItem: ClassroomHistoryItem = {
-    id: Date.now().toString(),
-    createdAt: new Date().toISOString(),
-    ...entry,
-  };
-  existing.unshift(newItem);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
-  return newItem;
-}
-
-export function deleteClassroomHistoryItem(id: string): void {
-  const existing: ClassroomHistoryItem[] = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(existing.filter((item) => item.id !== id)));
-}
-
-export function useDeleteClassroomHistoryItem() {
+export function useDeleteClassroomHistoryItem(teacherId?: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      deleteClassroomHistoryItem(id);
+      await deleteDoc(doc(db, COLLECTION, id));
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: getGetClassroomHistoryQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetClassroomHistoryQueryKey(teacherId) });
     },
   });
 }
 
-export function useGenerateQuiz() {
+export function useGenerateQuiz(teacherId?: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ data }: { data: any }): Promise<QuizResult> => {
@@ -107,22 +108,24 @@ export function useGenerateQuiz() {
 
       const result = await generateAIJson<QuizResult>(prompt);
 
-      saveClassroomHistoryItem({
-        type: "quiz",
-        topic: data.topic,
-        subject: data.subject,
-        content: result,
-      });
+      if (teacherId) {
+        await saveClassroomHistoryItem(teacherId, {
+          type: "quiz",
+          topic: data.topic,
+          subject: data.subject,
+          content: result,
+        });
+      }
 
       return result;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: getGetClassroomHistoryQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetClassroomHistoryQueryKey(teacherId) });
     },
   });
 }
 
-export function useGradeAnswer() {
+export function useGradeAnswer(teacherId?: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ data }: { data: any }): Promise<GradeResult> => {
@@ -152,17 +155,19 @@ Rubric / Key Points: ${data.rubric || "Standard conceptual depth and accuracy"}`
 
       const result = await generateAIJson<GradeResult>(prompt, data.image);
 
-      saveClassroomHistoryItem({
-        type: "grade",
-        topic: data.question.slice(0, 35) + "...",
-        subject: "Answer Evaluation",
-        content: result,
-      });
+      if (teacherId) {
+        await saveClassroomHistoryItem(teacherId, {
+          type: "grade",
+          topic: data.question.slice(0, 35) + "...",
+          subject: "Answer Evaluation",
+          content: result,
+        });
+      }
 
       return result;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: getGetClassroomHistoryQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetClassroomHistoryQueryKey(teacherId) });
     },
   });
 }

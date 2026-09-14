@@ -49,13 +49,7 @@ function safeId(raw: string): string {
   return raw.trim().toLowerCase().replace(/[/\\.#$\[\]]/g, "_");
 }
 
-export async function getExamRooms(): Promise<ExamRoom[]> {
-  const snap = await getDocs(collection(db, ROOMS_COLLECTION));
-  const rooms = snap.docs.map((d) => d.data() as ExamRoom);
-
-  // Best-effort: merge the correct answers back in ONLY for rooms this teacher owns.
-  // Firestore security rules block reading /secure/answerKey for anyone else, so that
-  // read will simply fail (and we quietly skip it) for rooms that aren't ours.
+async function attachAnswerKeys(rooms: ExamRoom[]): Promise<ExamRoom[]> {
   await Promise.all(
     rooms.map(async (room) => {
       try {
@@ -73,7 +67,24 @@ export async function getExamRooms(): Promise<ExamRoom[]> {
       }
     })
   );
+  return rooms;
+}
 
+export async function getExamRooms(): Promise<ExamRoom[]> {
+  const snap = await getDocs(collection(db, ROOMS_COLLECTION));
+  const rooms = snap.docs.map((d) => d.data() as ExamRoom);
+  await attachAnswerKeys(rooms);
+  return rooms.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+// Only this teacher's own rooms — used by the History page so one teacher never
+// sees another teacher's exams.
+export async function getExamRoomsForTeacher(teacherId: string): Promise<ExamRoom[]> {
+  if (!teacherId) return [];
+  const q = query(collection(db, ROOMS_COLLECTION), where("teacherId", "==", teacherId));
+  const snap = await getDocs(q);
+  const rooms = snap.docs.map((d) => d.data() as ExamRoom);
+  await attachAnswerKeys(rooms);
   return rooms.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 

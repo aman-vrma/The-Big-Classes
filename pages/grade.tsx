@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { useGradeAnswer, getGetClassroomHistoryQueryKey, type GradeResult } from "../lib/api-client";
+import { useAuth } from "../lib/auth-context";
 import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import {
@@ -32,7 +33,8 @@ export function Grade() {
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const gradeAnswer = useGradeAnswer();
+  const { user } = useAuth();
+  const gradeAnswer = useGradeAnswer(user?.id);
   const queryClient = useQueryClient();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -69,7 +71,7 @@ export function Grade() {
       {
         onSuccess: (data) => {
           setResult(data);
-          queryClient.invalidateQueries({ queryKey: getGetClassroomHistoryQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetClassroomHistoryQueryKey(user?.id) });
         },
       }
     );

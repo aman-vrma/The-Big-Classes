@@ -7,6 +7,7 @@ import { Markdown } from "../components/markdown";
 
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetClassroomHistoryQueryKey, saveClassroomHistoryItem } from "../lib/api-client";
+import { useAuth } from "../lib/auth-context";
 
 import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -33,6 +34,7 @@ export function LessonPlan() {
   const { content, isStreaming, startStream } = useStream();
   const [hasGenerated, setHasGenerated] = useState(false);
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -49,14 +51,14 @@ export function LessonPlan() {
     const generated = await startStream("/api/classroom/lesson-plan", values);
 
     if (generated) {
-      saveClassroomHistoryItem({
+      await saveClassroomHistoryItem(user?.id || "", {
         type: "lesson-plan",
         topic: values.topic,
         subject: values.subject,
         title: `${values.topic} (${values.gradeLevel})`,
         content: generated,
       });
-      queryClient.invalidateQueries({ queryKey: getGetClassroomHistoryQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetClassroomHistoryQueryKey(user?.id) });
     }
   };
 
