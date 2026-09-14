@@ -58,7 +58,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLi
 const formSchema = z.object({
   topic: z.string().optional(),
   subject: z.string().optional(),
-  numberOfQuestions: z.coerce.number().min(1).max(20),
+  numberOfQuestions: z.coerce.number().min(1),
   difficulty: z.enum(["easy", "medium", "hard"]),
   durationMinutes: z.coerce.number().min(1).max(60),
   sourceContext: z.string().optional(),
@@ -474,7 +474,7 @@ export function Quiz() {
                       <FormItem>
                         <FormLabel>Questions</FormLabel>
                         <FormControl>
-                          <Input type="number" min={1} max={20} {...field} />
+                          <Input type="number" min={1} {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
