@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Teacher/student profile documents — only the owner can read or write their own.
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /examRooms/{roomCode} {
+      // Public metadata + question text/options (NEVER correctAnswer — that field is
+      // never stored here) — readable by anyone so students can load the exam without
+      // logging in.
+      allow read: if true;
+
+      // Only a logged-in teacher can create a room, and only as themselves.
+      allow create: if request.auth != null
+        && request.resource.data.teacherId == request.auth.uid
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "teacher";
+
+      // Only the owning teacher can update it (e.g. closing the room).
+      allow update: if request.auth != null
+        && resource.data.teacherId == request.auth.uid;
+
+      // The answer key never leaves the server to anyone except the owning teacher's
+      // own review screen. The grading function (api/grade-exam.js) uses the Admin
+      // SDK, which bypasses these rules entirely — it doesn't need a rule here.
+      match /secure/{docId} {
+        allow read, write: if request.auth != null
+          && request.auth.uid == get(/databases/$(database)/documents/examRooms/$(roomCode)).data.teacherId;
+      }
+    }
+
+    match /candidates/{candidateId} {
+      // Public read so the teacher's live leaderboard works without students logging in.
+      allow read: if true;
+
+      // Clients may only ever write an "in-progress" heartbeat themselves. Final
+      // "completed" / "disqualified" results (and the score with them) are written
+      // exclusively by api/grade-exam.js via the Admin SDK, which bypasses these rules —
+      // so a student can never fabricate a passing score by writing directly.
+      allow create: if request.resource.data.status == "in-progress";
+      allow update: if resource.data.status == "in-progress"
+        && request.resource.data.status == "in-progress";
+    }
+  }
+}

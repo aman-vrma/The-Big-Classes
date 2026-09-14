@@ -1,17 +1,13 @@
 export async function generateAIStream(prompt: string, onChunk: (text: string) => void) {
-  try {
-    const response = await fetch("/api/gemini", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt }),
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data?.error || "Failed to fetch response");
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated.";
-    onChunk(text);
-  } catch (error: any) {
-    onChunk(`Generation Error: ${error?.message || "Network request failed"}`);
-  }
+  const response = await fetch("/api/gemini", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.error || "Failed to fetch response");
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated.";
+  onChunk(text);
 }
 
 export async function generateAIJson<T>(prompt: string, imageBase64?: string): Promise<T> {

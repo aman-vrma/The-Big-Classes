@@ -31,6 +31,7 @@ export interface ExamRoom {
   createdAt: string;
   durationMinutes: number;
   status: "active" | "closed";
+  teacherId?: string;
   questions: {
     id: number;
     question: string;
@@ -51,11 +52,49 @@ function safeId(raw: string): string {
 export async function getExamRooms(): Promise<ExamRoom[]> {
   const snap = await getDocs(collection(db, ROOMS_COLLECTION));
   const rooms = snap.docs.map((d) => d.data() as ExamRoom);
+
+  // Best-effort: merge the correct answers back in ONLY for rooms this teacher owns.
+  // Firestore security rules block reading /secure/answerKey for anyone else, so that
+  // read will simply fail (and we quietly skip it) for rooms that aren't ours.
+  await Promise.all(
+    rooms.map(async (room) => {
+      try {
+        const keySnap = await getDoc(doc(db, ROOMS_COLLECTION, room.roomCode.toUpperCase(), "secure", "answerKey"));
+        if (keySnap.exists()) {
+          const answers = keySnap.data().answers as { id: number; correctAnswer: string; explanation: string }[];
+          room.questions = room.questions.map((q, idx) => ({
+            ...q,
+            correctAnswer: answers[idx]?.correctAnswer ?? "",
+            explanation: answers[idx]?.explanation ?? "",
+          }));
+        }
+      } catch {
+        // Not our room — leave correctAnswer/explanation blank, that's expected.
+      }
+    })
+  );
+
   return rooms.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
+// Splits the room into a PUBLIC document (topic, options — never the correct answers,
+// since students read this to take the exam) and a SECURE sub-document (the answer
+// key, readable only by the owning teacher or the server's Admin SDK). This is what
+// stops a student from opening DevTools/Network tab and reading every correct answer
+// before even starting the exam.
 export async function saveExamRoom(room: ExamRoom): Promise<void> {
-  await setDoc(doc(db, ROOMS_COLLECTION, room.roomCode.toUpperCase()), room);
+  const roomCode = room.roomCode.toUpperCase();
+
+  const publicQuestions = room.questions.map(({ id, question, options }) => ({ id, question, options }));
+  const answerKey = room.questions.map(({ id, correctAnswer, explanation }) => ({ id, correctAnswer, explanation }));
+
+  await setDoc(doc(db, ROOMS_COLLECTION, roomCode), {
+    ...room,
+    roomCode,
+    questions: publicQuestions,
+  });
+
+  await setDoc(doc(db, ROOMS_COLLECTION, roomCode, "secure", "answerKey"), { answers: answerKey });
 }
 
 export async function closeExamRoom(code: string): Promise<void> {

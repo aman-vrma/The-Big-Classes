@@ -102,7 +102,9 @@ function GeneratedHistoryCard({ item, onDelete }: { item: ClassroomHistoryItem; 
               {(item.content as QuizResult)?.questions?.map((q, i) => (
                 <div key={q.id || i} className="p-3 rounded-lg border border-slate-200 bg-slate-50/50 text-xs space-y-1">
                   <p className="font-semibold text-slate-900">Q{i + 1}. {q.question}</p>
-                  <p className="text-emerald-700 font-medium">Correct Answer: {q.correctAnswer}</p>
+                  <p className="text-emerald-700 font-medium">
+                    Correct Answer: {q.correctAnswer || <span className="text-slate-400">Not available (hosted by a different teacher account)</span>}
+                  </p>
                 </div>
               ))}
             </div>

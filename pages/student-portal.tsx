@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { findExamRoom, updateCandidateStatus, hasStudentAttempted, ExamCandidate } from "../lib/room-store";
+import { useProctor } from "../hooks/use-proctor";
 import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -39,8 +40,24 @@ export function StudentPortal() {
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<{ [key: number]: number }>({});
   const [timeLeft, setTimeLeft] = useState(600);
-  const [strikes, setStrikes] = useState(0);
   const [score, setScore] = useState(0);
+
+  // Refs so the proctor's onAutoSubmit callback (created once) always sees the latest
+  // answers/questions without us having to rebuild the listeners on every keystroke.
+  const selectedAnswersRef = useRef(selectedAnswers);
+  const activeQuestionsRef = useRef<QuestionItem[]>([]);
+  useEffect(() => { selectedAnswersRef.current = selectedAnswers; }, [selectedAnswers]);
+  useEffect(() => { activeQuestionsRef.current = activeQuestions; }, [activeQuestions]);
+
+  const handleAutoSubmit = useCallback(() => {
+    triggerFinalSubmit(selectedAnswersRef.current, activeQuestionsRef.current, 3);
+  }, []);
+
+  const { violations: strikes, resetViolations } = useProctor({
+    maxViolations: 3,
+    enabled: examStarted && !examSubmitted,
+    onAutoSubmit: handleAutoSubmit,
+  });
 
   const syncCandidateToRoomStore = async (
     status: "in-progress" | "completed" | "disqualified",
@@ -72,26 +89,12 @@ export function StudentPortal() {
     }
   };
 
+  // Whenever the shared proctor hook records a new strike, mirror it to Firestore so
+  // the teacher's live candidate table reflects it in near real time.
   useEffect(() => {
-    if (!examStarted || examSubmitted) return;
-
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        setStrikes((prev) => {
-          const nextVal = prev + 1;
-          if (nextVal >= 3) {
-            triggerFinalSubmit(selectedAnswers, activeQuestions, nextVal);
-          } else {
-            syncCandidateToRoomStore("in-progress");
-          }
-          return nextVal;
-        });
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [examStarted, examSubmitted, selectedAnswers, activeQuestions, strikes]);
+    if (!examStarted || examSubmitted || strikes === 0 || strikes >= 3) return;
+    syncCandidateToRoomStore("in-progress");
+  }, [strikes]);
 
   useEffect(() => {
     if (!examStarted || examSubmitted) return;
@@ -151,7 +154,7 @@ export function StudentPortal() {
       setTimeLeft((room.durationMinutes || 10) * 60);
       setExamStarted(true);
       setExamSubmitted(false);
-      setStrikes(0);
+      resetViolations();
       setCurrentQuestionIdx(0);
       setSelectedAnswers({});
 
@@ -176,26 +179,32 @@ export function StudentPortal() {
     questions: QuestionItem[],
     currentStrikes = strikes
   ) => {
-    let finalScore = 0;
-
-    questions.forEach((q, idx) => {
-      const selectedIdx = answers[idx];
-      if (selectedIdx === undefined) return;
-
-      const selectedOptionText = q.options?.[selectedIdx];
-
-      if (typeof q.correctAnswer === "string") {
-        if (selectedOptionText === q.correctAnswer) finalScore += 1;
-      } else if (typeof q.correctAnswer === "number") {
-        if (selectedIdx === q.correctAnswer) finalScore += 1;
-      }
-    });
-
-    setScore(finalScore);
+    // Lock the UI immediately so a slow network response can't let the student
+    // keep answering (or double-submit) while grading is in flight.
     setExamSubmitted(true);
 
-    const finalStatus = currentStrikes >= 3 ? "disqualified" : "completed";
-    await syncCandidateToRoomStore(finalStatus, finalScore);
+    try {
+      const res = await fetch("/api/grade-exam", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          roomCode: examPin.trim().toUpperCase(),
+          studentName: studentName.trim(),
+          studentEmail: studentEmail.trim(),
+          answers,
+          strikes: currentStrikes,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Failed to submit exam");
+
+      setScore(data.score);
+    } catch (err) {
+      console.error("Failed to grade exam:", err);
+      // The submission still went out; the teacher's live dashboard (backed by the
+      // same server write) remains the source of truth even if this response failed.
+    }
   };
 
   const formatTime = (seconds: number) => {
@@ -211,9 +220,17 @@ export function StudentPortal() {
     setSelectedAnswers({});
     setCurrentQuestionIdx(0);
     setScore(0);
-    setStrikes(0);
+    resetViolations();
     setExamPin("");
   };
+
+  const escapeHtml = (value: string) =>
+    String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
 
   const handleDownloadPDF = () => {
     const percentage = activeQuestions.length > 0 ? Math.round((score / activeQuestions.length) * 100) : 0;
@@ -223,6 +240,11 @@ export function StudentPortal() {
       day: "numeric",
     });
 
+    const safeName = escapeHtml(studentName);
+    const safeEmail = escapeHtml(studentEmail);
+    const safePin = escapeHtml(examPin);
+    const safeTitle = escapeHtml(quizTitle);
+
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
 
@@ -230,7 +252,7 @@ export function StudentPortal() {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Official Scorecard - ${studentName}</title>
+          <title>Official Scorecard - ${safeName}</title>
           <style>
             body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #0f172a; }
             .cert-container { border: 8px solid #1e293b; padding: 40px; max-width: 700px; margin: 0 auto; }
@@ -249,10 +271,10 @@ export function StudentPortal() {
               <p>OFFICIAL PROCTORED EXAMINATION SCORECARD</p>
             </div>
             <div class="content">
-              <div class="row"><span>Candidate Name</span><b>${studentName}</b></div>
-              <div class="row"><span>Candidate Email</span><b>${studentEmail}</b></div>
-              <div class="row"><span>Session Room PIN</span><b>${examPin}</b></div>
-              <div class="row"><span>Exam Title</span><b>${quizTitle}</b></div>
+              <div class="row"><span>Candidate Name</span><b>${safeName}</b></div>
+              <div class="row"><span>Candidate Email</span><b>${safeEmail}</b></div>
+              <div class="row"><span>Session Room PIN</span><b>${safePin}</b></div>
+              <div class="row"><span>Exam Title</span><b>${safeTitle}</b></div>
               <div class="row"><span>Evaluation Date</span><b>${issueDate}</b></div>
               <div class="row"><span>Proctor Status</span><b>${strikes >= 3 ? "Violated Strikes (Disqualified)" : "Verified Clear"}</b></div>
             </div>
@@ -270,40 +292,29 @@ export function StudentPortal() {
   };
 
   return (
-    <div className="space-y-8 max-w-4xl mx-auto">
+    <div className="max-w-3xl mx-auto space-y-8">
       {!examStarted && !examSubmitted && (
-        <div className="space-y-6">
-          <header className="border-b border-slate-800 pb-5">
-            <h1 className="text-3xl font-serif font-bold text-white tracking-tight">
-              Student Assessment Arena
-            </h1>
-            <p className="text-slate-400 mt-1 text-sm">
-              Enter your verified details and active faculty PIN to load your test.
-            </p>
-          </header>
-
-          <Card className="p-8 border-slate-800 bg-slate-900/90 shadow-xl rounded-2xl max-w-lg mx-auto">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
-                <ShieldCheck className="w-6 h-6" />
+        <div className="pt-10">
+          <Card className="p-8 border-slate-800 bg-slate-900/90 shadow-2xl rounded-2xl">
+            <div className="text-center mb-8 space-y-2">
+              <div className="w-14 h-14 rounded-2xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 mx-auto mb-3">
+                <ShieldCheck className="w-7 h-7" />
               </div>
-              <div>
-                <h2 className="text-lg font-bold text-white">Enter Exam Desk</h2>
-                <p className="text-xs text-slate-400">Proctored session verification</p>
-              </div>
+              <h1 className="text-2xl font-bold text-white tracking-tight">Student Exam Portal</h1>
+              <p className="text-slate-400 text-sm">Enter your credentials and room PIN to begin your proctored session.</p>
             </div>
 
-            <form onSubmit={handleStartExam} className="space-y-4">
+            <form onSubmit={handleStartExam} className="space-y-5">
               <div>
                 <label className="block text-xs font-bold text-slate-200 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                   <User className="w-3.5 h-3.5 text-blue-400" />
-                  Candidate Full Name
+                  Full Name
                 </label>
                 <Input
                   required
                   value={studentName}
                   onChange={(e) => setStudentName(e.target.value)}
-                  placeholder="e.g. Aman Verma"
+                  placeholder="e.g. John Doe"
                   className="bg-slate-950 border-slate-700 text-white placeholder:text-slate-500 h-11"
                 />
               </div>

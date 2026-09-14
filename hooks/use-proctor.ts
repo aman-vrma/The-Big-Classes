@@ -27,7 +27,7 @@ export function useProctor({ maxViolations = 3, onAutoSubmit, enabled = false }:
   useEffect(() => {
     if (!enabled) return;
 
-    // 1. Tab switch & visibility change
+    // 1. Tab switch & minimization (this event only ever fires on `document`, not `window`)
     const handleVisibilityChange = () => {
       if (document.hidden) {
         triggerViolation("Tab switch or minimization detected!");
@@ -56,13 +56,13 @@ export function useProctor({ maxViolations = 3, onAutoSubmit, enabled = false }:
       }
     };
 
-    window.addEventListener("visibilitychange", handleVisibilityChange);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("blur", handleWindowBlur);
     document.addEventListener("contextmenu", handleContextMenu);
     document.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      window.removeEventListener("visibilitychange", handleVisibilityChange);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("blur", handleWindowBlur);
       document.removeEventListener("contextmenu", handleContextMenu);
       document.removeEventListener("keydown", handleKeyDown);
@@ -71,5 +71,12 @@ export function useProctor({ maxViolations = 3, onAutoSubmit, enabled = false }:
 
   const clearWarning = () => setWarningMessage(null);
 
-  return { violations, warningMessage, clearWarning };
+  // Lets the caller start a fresh attempt (e.g. a new exam) at 0 strikes instead of
+  // carrying over violations from a previous attempt in the same session.
+  const resetViolations = useCallback(() => {
+    setViolations(0);
+    setWarningMessage(null);
+  }, []);
+
+  return { violations, warningMessage, clearWarning, resetViolations };
 }

@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "../lib/auth-context";
 import { 
   useGenerateQuiz, 
   getGetClassroomHistoryQueryKey, 
@@ -99,6 +100,8 @@ export function Quiz() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const generateQuiz = useGenerateQuiz();
+
+  const { user } = useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -219,14 +222,15 @@ export function Quiz() {
 
     try {
       await saveExamRoom({
-        roomCode: pin,
-        topic: result.topic,
-        subject: form.getValues("subject") || "General",
-        createdAt: new Date().toISOString(),
-        durationMinutes: form.getValues("durationMinutes") || 10,
-        status: "active",
-        questions: result.questions,
-      });
+    roomCode: pin,
+    topic: result.topic,
+    subject: form.getValues("subject") || "General",
+    createdAt: new Date().toISOString(),
+    durationMinutes: form.getValues("durationMinutes") || 10,
+    status: "active",
+    teacherId: user?.id,
+    questions: result.questions,
+   });
 
       setHostedRoomCode(pin);
       setIsRoomClosed(false);
