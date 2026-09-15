@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { findExamRoom, updateCandidateStatus, hasStudentAttempted, ExamCandidate } from "../lib/room-store";
 import { useProctor } from "../hooks/use-proctor";
+import { useAuth } from "../lib/auth-context";
 import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -26,8 +27,9 @@ interface QuestionItem {
 
 export function StudentPortal() {
   const [examPin, setExamPin] = useState("");
-  const [studentName, setStudentName] = useState("");
-  const [studentEmail, setStudentEmail] = useState("");
+  const { user } = useAuth();
+  const studentName = user?.name || "";
+  const studentEmail = user?.email || "";
   
   const [examStarted, setExamStarted] = useState(false);
   const [examSubmitted, setExamSubmitted] = useState(false);
@@ -305,33 +307,17 @@ export function StudentPortal() {
             </div>
 
             <form onSubmit={handleStartExam} className="space-y-5">
-              <div>
-                <label className="block text-xs font-bold text-slate-200 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5 text-blue-400" />
-                  Full Name
-                </label>
-                <Input
-                  required
-                  value={studentName}
-                  onChange={(e) => setStudentName(e.target.value)}
-                  placeholder="e.g. John Doe"
-                  className="bg-slate-950 border-slate-700 text-white placeholder:text-slate-500 h-11"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-200 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                  <Mail className="w-3.5 h-3.5 text-blue-400" />
-                  Candidate Email Address
-                </label>
-                <Input
-                  type="email"
-                  required
-                  value={studentEmail}
-                  onChange={(e) => setStudentEmail(e.target.value)}
-                  placeholder="e.g. student@thebigclasses.edu"
-                  className="bg-slate-950 border-slate-700 text-white placeholder:text-slate-500 h-11"
-                />
+              <div className="p-3.5 rounded-xl bg-slate-800/60 border border-slate-700 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
+                  <User className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Signed in as</p>
+                  <p className="text-sm font-bold text-white truncate">{studentName}</p>
+                  <p className="text-xs text-slate-400 truncate flex items-center gap-1">
+                    <Mail className="w-3 h-3" /> {studentEmail}
+                  </p>
+                </div>
               </div>
 
               <div>
