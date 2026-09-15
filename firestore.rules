@@ -35,13 +35,19 @@ service cloud.firestore {
       // Public read so the teacher's live leaderboard works without students logging in.
       allow read: if true;
 
-      // Clients may only ever write an "in-progress" heartbeat themselves. Final
+      // A student must be logged in, and can only ever write a record under their OWN
+      // authenticated email — nobody can submit an exam attempt pretending to be
+      // someone else. Clients may only ever write an "in-progress" heartbeat; final
       // "completed" / "disqualified" results (and the score with them) are written
       // exclusively by api/grade-exam.js via the Admin SDK, which bypasses these rules —
       // so a student can never fabricate a passing score by writing directly.
-      allow create: if request.resource.data.status == "in-progress";
-      allow update: if resource.data.status == "in-progress"
-        && request.resource.data.status == "in-progress";
+      allow create: if request.auth != null
+        && request.resource.data.status == "in-progress"
+        && request.resource.data.studentEmail == request.auth.token.email;
+      allow update: if request.auth != null
+        && resource.data.status == "in-progress"
+        && request.resource.data.status == "in-progress"
+        && resource.data.studentEmail == request.auth.token.email;
     }
 
     // Lesson plans, assignments, quizzes-as-drafted, and grading reports a teacher has
